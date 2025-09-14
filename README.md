@@ -21,8 +21,6 @@
   GOTRUE_HOOK_SEND_SMS_URI=**********************
   GOTRUE_HOOK_SEND_SMS_SECRETS=v1,whsec_************************
   ```
- 
-## Supabase WhatsApp Connector Workflow
 
 ## SaaS Setup
 
@@ -388,3 +386,109 @@
       has_permission((SELECT uid() AS uid), 'users', 'update')
     );
     ```
+
+## Supabase WhatsApp Connector Workflow
+
+```json
+{
+  "nodes": [
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "6LP3lMueOwLyJYXb",
+          "mode": "list",
+          "cachedResultName": "TKG — 🧩 Send WhatsApp Message"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "phone_number": "={{ $('Webhook').item.json.body.user.phone }}",
+            "message": "=Ini adalah kode verifikasi (OTP) untuk akun Adaptasi AI Anda:\n{{ $('Webhook').item.json.body.sms.otp }}\n\nMohon masukkan kode ini dalam waktu 5 menit. Jika Anda tidak merasa meminta kode ini, abaikan pesan ini. Terima kasih!"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "phone_number",
+              "displayName": "phone_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string"
+            },
+            {
+              "id": "media_url",
+              "displayName": "media_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "36d4a747-1748-4c3b-8eda-6d9935d9ee92",
+      "name": "Send WhatsApp"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "c7814c88-44e0-490e-bd71-c62a6d031a75",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "3a1dddf4-1582-4721-b6e5-83ca581890c1",
+      "name": "Webhook",
+      "webhookId": "c7814c88-44e0-490e-bd71-c62a6d031a75"
+    }
+  ],
+  "connections": {
+    "Send WhatsApp": {
+      "main": [
+        []
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Send WhatsApp",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "fba4ec510b187b465eb107fafff437a62559efcb652da00e7095f49185b0b3b5"
+  }
+}
+```
