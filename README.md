@@ -116,9 +116,9 @@
     id UUID NOT NULL PRIMARY KEY DEFAULT gen_random_uuid(),
     role_id UUID NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
     permission_id UUID NOT NULL REFERENCES permissions(id) ON DELETE CASCADE,
-    fields JSONB NOT NULL DEFAULT '{}'::JSONB,
+    fields TEXT[] NOT NULL DEFAULT '{}'::TEXT[],
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    CONSTRAINT role_permissions_role_id_permission_id_key (role_id, permission_id)
+    CONSTRAINT role_permissions_role_id_permission_id_key UNIQUE (role_id, permission_id)
   );
   ```
 - [ ] Create table `user_roles`
@@ -131,7 +131,7 @@
     active BOOL NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    CONSTRAINT user_roles_user_id_role_id_company_id_key (user_id, role_id, company_id)
+    CONSTRAINT user_roles_user_id_role_id_company_id_key UNIQUE (user_id, role_id, company_id)
   );
 
   CREATE TRIGGER update_user_roles_updated_at BEFORE
@@ -140,7 +140,7 @@
   ```
 - [ ] Create function `has_permission`
   ```sql
-  CREATE FUNCTION has_permission (
+  CREATE FUNCTION public.has_permission (
     user_id UUID,
     company_id UUID,
     resource TEXT,
@@ -155,9 +155,9 @@
     SELECT
       EXISTS (
         SELECT 1
-        FROM public.user_roles ur
-        JOIN public.role_permissions rp ON rp.role_id = ur.role_id
-        JOIN public.permissions p ON rp.permission_id = p.id
+        FROM user_roles ur
+        JOIN role_permissions rp ON rp.role_id = ur.role_id
+        JOIN permissions p ON rp.permission_id = p.id
         WHERE ur.user_id = has_permission.user_id
           AND ur.company_id = has_permission.company_id
           AND p.resource = has_permission.resource
@@ -173,7 +173,7 @@
           )
         );
   $$;
-  CREATE FUNCTION has_permission(
+  CREATE FUNCTION public.has_permission(
     user_id uuid,
     resource text,
     action text,
@@ -187,9 +187,9 @@
     SELECT
       EXISTS (
         SELECT 1
-        FROM public.user_roles ur
-        JOIN public.role_permissions rp ON rp.role_id = ur.role_id
-        JOIN public.permissions p ON rp.permission_id = p.id
+        FROM user_roles ur
+        JOIN role_permissions rp ON rp.role_id = ur.role_id
+        JOIN permissions p ON rp.permission_id = p.id
         WHERE ur.user_id = has_permission.user_id
           AND p.resource = has_permission.resource
           AND p.action = has_permission.action
@@ -213,28 +213,28 @@
     CREATE POLICY "User can create company when have permissions"
     ON companies AS PERMISSIVE FOR INSERT TO authenticated
     WITH CHECK (
-      has_permission((SELECT uid() AS uid), 'companies', 'insert', TO_JSONB(companies.*))
+      has_permission((SELECT auth.uid() AS uid), 'companies', 'insert', TO_JSONB(companies.*))
     );
 
     CREATE POLICY "User can view their own companies when have permissions"
     ON companies AS PERMISSIVE FOR SELECT TO authenticated
     USING (
-      has_permission((SELECT uid() AS uid), companies.id, 'companies', 'view')
+      has_permission((SELECT auth.uid() AS uid), companies.id, 'companies', 'view')
     );
 
     CREATE POLICY "User can update their own companies when have permissions"
     ON companies AS PERMISSIVE FOR UPDATE TO authenticated
     USING (
-      has_permission((SELECT uid() AS uid), companies.id, 'companies', 'update')
+      has_permission((SELECT auth.uid() AS uid), companies.id, 'companies', 'update')
     )
     WITH CHECK (
-      has_permission((SELECT uid() AS uid), companies.id, 'companies', 'update', TO_JSONB(companies.*))
+      has_permission((SELECT auth.uid() AS uid), companies.id, 'companies', 'update', TO_JSONB(companies.*))
     );
 
     CREATE POLICY "User can delete their own companies when have permissions"
     ON companies AS PERMISSIVE FOR DELETE TO authenticated
     USING (
-      has_permission((SELECT uid() AS uid), companies.id, 'companies', 'delete')
+      has_permission((SELECT auth.uid() AS uid), companies.id, 'companies', 'delete')
     );
 
     INSERT INTO permissions (resource, action, description)
@@ -250,22 +250,22 @@
     CREATE POLICY "User can create their own profile"
     ON profiles AS PERMISSIVE FOR INSERT TO authenticated
     WITH CHECK (
-      (SELECT uid() AS uid) = profiles.user_id
+      (SELECT auth.uid() AS uid) = profiles.user_id
     );
 
     CREATE POLICY "User can view their own profiles"
     ON profiles AS PERMISSIVE FOR SELECT TO authenticated
     USING (
-      (SELECT uid() AS uid) = profiles.user_id
+      (SELECT auth.uid() AS uid) = profiles.user_id
     );
 
     CREATE POLICY "User can update their own profiles"
     ON profiles AS PERMISSIVE FOR UPDATE TO authenticated
     USING (
-      (SELECT uid() AS uid) = profiles.user_id
+      (SELECT auth.uid() AS uid) = profiles.user_id
     )
     WITH CHECK (
-      (SELECT uid() AS uid) = profiles.user_id
+      (SELECT auth.uid() AS uid) = profiles.user_id
     );
     ```
   - [ ] Permissions
@@ -275,7 +275,7 @@
     CREATE POLICY "User can create permissions when have permissions"
     ON permissions AS PERMISSIVE FOR INSERT TO authenticated
     WITH CHECK (
-      has_permission((SELECT uid() AS uid), 'permissions', 'insert', TO_JSONB(permissions.*))
+      has_permission((SELECT auth.uid() AS uid), 'permissions', 'insert', TO_JSONB(permissions.*))
     );
 
     CREATE POLICY "User can view permissions"
@@ -287,16 +287,16 @@
     CREATE POLICY "User can update permissions when have permissions"
     ON permissions AS PERMISSIVE FOR UPDATE TO authenticated
     USING (
-      has_permission((SELECT uid() AS uid), 'permissions', 'update')
+      has_permission((SELECT auth.uid() AS uid), 'permissions', 'update')
     )
     WITH CHECK (
-      has_permission((SELECT uid() AS uid), 'permissions', 'update', TO_JSONB(permissions.*))
+      has_permission((SELECT auth.uid() AS uid), 'permissions', 'update', TO_JSONB(permissions.*))
     );
 
     CREATE POLICY "User can delete permissions when have permissions"
     ON permissions AS PERMISSIVE FOR DELETE TO authenticated
     USING (
-      has_permission((SELECT uid() AS uid), 'permissions', 'delete')
+      has_permission((SELECT auth.uid() AS uid), 'permissions', 'delete')
     );
 
     INSERT INTO permissions (resource, action, description)
@@ -311,7 +311,7 @@
     CREATE POLICY "User can create roles when have permissions"
     ON roles AS PERMISSIVE FOR INSERT TO authenticated
     WITH CHECK (
-      has_permission((SELECT uid() AS uid), 'roles', 'insert', TO_JSONB(role.*))
+      has_permission((SELECT auth.uid() AS uid), 'roles', 'insert', TO_JSONB(roles.*))
     );
 
     CREATE POLICY "User can view roles"
@@ -323,16 +323,16 @@
     CREATE POLICY "User can update roles when have permissions"
     ON roles AS PERMISSIVE FOR UPDATE TO authenticated
     USING (
-      has_permission((SELECT uid() AS uid), 'roles', 'update')
+      has_permission((SELECT auth.uid() AS uid), 'roles', 'update')
     )
     WITH CHECK (
-      has_permission((SELECT uid() AS uid), 'roles', 'update', TO_JSONB(roles.*))
+      has_permission((SELECT auth.uid() AS uid), 'roles', 'update', TO_JSONB(roles.*))
     );
 
     CREATE POLICY "User can delete roles when have permissions"
     ON roles AS PERMISSIVE FOR DELETE TO authenticated
     USING (
-      has_permission((SELECT uid() AS uid), 'roles', 'delete')
+      has_permission((SELECT auth.uid() AS uid), 'roles', 'delete')
     );
 
     INSERT INTO permissions (resource, action, description)
@@ -347,8 +347,8 @@
     CREATE POLICY "User can create role_permissions when have permissions"
     ON role_permissions AS PERMISSIVE FOR INSERT TO authenticated
     WITH CHECK (
-      has_permission((SELECT uid() AS uid), 'roles', 'insert', TO_JSONB(role_permissions.*))
-      OR has_permission((SELECT uid() AS uid), 'roles', 'update', TO_JSONB(role_permissions.*))
+      has_permission((SELECT auth.uid() AS uid), 'roles', 'insert', TO_JSONB(role_permissions.*))
+      OR has_permission((SELECT auth.uid() AS uid), 'roles', 'update', TO_JSONB(role_permissions.*))
     );
 
     CREATE POLICY "User can view role_permissions"
@@ -360,7 +360,7 @@
     CREATE POLICY "User can delete role_permissions when have permissions"
     ON role_permissions AS PERMISSIVE FOR DELETE TO authenticated
     USING (
-      has_permission((SELECT uid() AS uid), 'roles', 'update')
+      has_permission((SELECT auth.uid() AS uid), 'roles', 'update')
     );
     ```
   - [ ] User Roles
@@ -370,20 +370,20 @@
     CREATE POLICY "User can create user_roles when have permissions"
     ON user_roles AS PERMISSIVE FOR INSERT TO authenticated
     WITH CHECK (
-      has_permission((SELECT uid() AS uid), 'users', 'insert')
-      OR has_permission((SELECT uid() AS uid), 'users', 'update')
+      has_permission((SELECT auth.uid() AS uid), 'users', 'insert')
+      OR has_permission((SELECT auth.uid() AS uid), 'users', 'update')
     );
 
     CREATE POLICY "User can view their own user roles"
     ON user_roles AS PERMISSIVE FOR SELECT TO authenticated
     USING (
-      (SELECT uid() AS uid) = user_roles.user_id
+      (SELECT auth.uid() AS uid) = user_roles.user_id
     );
 
     CREATE POLICY "User can delete user_roles when have permissions"
     ON user_roles AS PERMISSIVE FOR DELETE TO authenticated
     USING (
-      has_permission((SELECT uid() AS uid), 'users', 'update')
+      has_permission((SELECT auth.uid() AS uid), 'users', 'update')
     );
     ```
 
